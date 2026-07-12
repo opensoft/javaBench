@@ -5,7 +5,7 @@ A comprehensive Java development environment using layered Docker containers.
 ## Features
 
 ### Java Development Stack
-- **OpenJDK 21** (LTS version)
+- **OpenJDK 25** (LTS version)
 - **Maven** - Dependency management and build tool
 - **Gradle 8.5** - Modern build automation
 - **Spring Boot CLI** - Spring application scaffolding
@@ -112,7 +112,7 @@ For Gradle projects, the project must apply both plugins:
 ```groovy
 plugins {
     id "jacoco"
-    id "org.sonarqube" version "7.3.0.8198"
+    id "org.sonarqube" version "7.3.1.8318"
 }
 
 jacocoTestReport {
@@ -171,8 +171,8 @@ sdk use java 17.0.9-tem
 Maven is configured to use `/workspace/m2repo` for the local repository, persisting dependencies across container restarts.
 
 ### Environment Variables
-- `JAVA_HOME`: `/usr/lib/jvm/java-21-openjdk-amd64`
-- `GRADLE_HOME`: `/opt/gradle/gradle-8.5`
+- `JAVA_HOME`: `/usr/lib/jvm/java-25-openjdk-amd64`
+- `GRADLE_HOME`: `/opt/gradle/gradle-9.6.1`
 - `MAVEN_OPTS`: `-Dmaven.repo.local=/workspace/m2repo`
 
 ## Useful Aliases
@@ -221,7 +221,7 @@ echo $JAVA_HOME
 
 - Container Version: 1.0.0
 - Base Image: dev-bench-base
-- JDK Version: OpenJDK 21
+- JDK Version: OpenJDK 25
 - Maven Version: (from apt)
 - Gradle Version: 8.5
 - Spring Boot CLI: 3.2.0

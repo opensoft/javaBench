@@ -45,7 +45,7 @@ if docker-compose -f "$SCRIPT_DIR/.devcontainer/docker-compose.yml" up -d; then
     echo "   docker ps | grep java_bench"
     echo ""
     echo "☕ Java Development Ready:"
-    echo "   - OpenJDK 21 (LTS)"
+    echo "   - OpenJDK 25 (LTS)"
     echo "   - Maven and Gradle build tools"
     echo "   - Spring Boot CLI"
     echo "   - SDKMan for version management"

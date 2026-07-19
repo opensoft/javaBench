@@ -1,18 +1,25 @@
+# syntax=docker/dockerfile:1.7
 # Layer 2: Java Bench Image
 # Extends Layer 1 (dev-bench-base) with Java specific tools
-# Includes: OpenJDK 21, Maven, Gradle, Spring CLI, Java tools
+# Includes: OpenJDK 25, Maven, Gradle, Spring CLI, Java tools
 
 ARG BASE_IMAGE=dev-bench-base:latest
 FROM ${BASE_IMAGE}
 
-ARG JACOCO_VERSION=0.8.14
-ARG SONAR_MAVEN_PLUGIN_VERSION=5.6.0.6792
-ARG SONAR_GRADLE_PLUGIN_VERSION=7.3.0.8198
+ARG JACOCO_VERSION=0.8.15
+ARG SONAR_MAVEN_PLUGIN_VERSION=5.7.0.6970
+ARG SONAR_GRADLE_PLUGIN_VERSION=7.3.1.8318
+ARG SPRINGBOOT_VERSION=4.1.0
+ARG KOTLIN_VERSION=2.4.0
+ARG GROOVY_VERSION=6.0.0-alpha-1
+ARG SCALA_VERSION=3.8.4
+ARG QUARKUS_VERSION=3.37.1
+ARG MICRONAUT_VERSION=5.0.3
 
 # Container version labels
 LABEL layer="2"
 LABEL layer.name="java-bench"
-LABEL layer.version="2.2.1"
+LABEL layer.version="2.2.10"
 LABEL layer.description="Java development tools and JDK (user-agnostic)"
 LABEL bench.type="java"
 
@@ -23,21 +30,27 @@ USER root
 # JAVA JDK
 # ========================================
 
-# Install OpenJDK 21 (LTS) and zip (required by SDKMAN)
+# Install OpenJDK 25 (LTS) and zip (required by SDKMAN)
 RUN apt-get update && apt-get install -y \
-    openjdk-21-jdk \
-    openjdk-21-jre \
+    openjdk-25-jdk \
+    openjdk-25-jre \
     zip \
     && rm -rf /var/lib/apt/lists/*
 
 # Set JAVA_HOME
-ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+ENV JAVA_HOME=/usr/lib/jvm/java-25-openjdk-amd64
 ENV PATH="$JAVA_HOME/bin:$PATH"
 ENV JACOCO_VERSION=${JACOCO_VERSION}
 ENV JACOCO_CLI_JAR=/opt/jacoco/jacococli.jar
 ENV JACOCO_AGENT_JAR=/opt/jacoco/jacocoagent.jar
 ENV SONAR_MAVEN_PLUGIN_VERSION=${SONAR_MAVEN_PLUGIN_VERSION}
 ENV SONAR_GRADLE_PLUGIN_VERSION=${SONAR_GRADLE_PLUGIN_VERSION}
+ENV SPRINGBOOT_VERSION=${SPRINGBOOT_VERSION}
+ENV KOTLIN_VERSION=${KOTLIN_VERSION}
+ENV GROOVY_VERSION=${GROOVY_VERSION}
+ENV SCALA_VERSION=${SCALA_VERSION}
+ENV QUARKUS_VERSION=${QUARKUS_VERSION}
+ENV MICRONAUT_VERSION=${MICRONAUT_VERSION}
 
 # ========================================
 # BUILD TOOLS
@@ -48,29 +61,83 @@ RUN apt-get update && apt-get install -y \
     maven \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Gradle
-RUN wget https://services.gradle.org/distributions/gradle-8.5-bin.zip -P /tmp \
-    && unzip -d /opt/gradle /tmp/gradle-8.5-bin.zip \
-    && rm /tmp/gradle-8.5-bin.zip \
-    && ln -s /opt/gradle/gradle-8.5/bin/gradle /usr/local/bin/gradle
+# Install a resumable, multi-connection downloader for large tool distributions.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    aria2 \
+    && rm -rf /var/lib/apt/lists/*
 
-ENV GRADLE_HOME=/opt/gradle/gradle-8.5
+# Install Gradle
+RUN aria2c --allow-overwrite=true --auto-file-renaming=false --continue=true \
+        --max-connection-per-server=8 --split=8 --min-split-size=8M \
+        --max-tries=10 --retry-wait=5 --connect-timeout=30 --timeout=120 \
+        --summary-interval=30 --console-log-level=warn \
+        -d /tmp -o gradle-9.6.1-bin.zip \
+        https://downloads.gradle.org/distributions/gradle-9.6.1-bin.zip \
+    && unzip -d /opt/gradle /tmp/gradle-9.6.1-bin.zip \
+    && rm /tmp/gradle-9.6.1-bin.zip \
+    && ln -s /opt/gradle/gradle-9.6.1/bin/gradle /usr/local/bin/gradle
+
+ENV GRADLE_HOME=/opt/gradle/gradle-9.6.1
 ENV PATH="$GRADLE_HOME/bin:$PATH"
+ENV CURL_RETRY_OPTS="--retry 5 --retry-delay 5 --connect-timeout 30 --max-time 600"
+ENV ARIA2_RETRY_OPTS="--allow-overwrite=true --auto-file-renaming=false --continue=true --max-connection-per-server=8 --split=8 --min-split-size=1M --max-tries=10 --retry-wait=5 --connect-timeout=30 --timeout=120 --summary-interval=30 --console-log-level=warn"
 
 # ========================================
 # JAVA DEVELOPMENT TOOLS
 # ========================================
 
 # Install SDKMan system-wide
-RUN curl -s "https://get.sdkman.io" | bash \
+RUN curl -fsSL $CURL_RETRY_OPTS "https://get.sdkman.io" | bash \
     && bash -c "source $HOME/.sdkman/bin/sdkman-init.sh" \
     && mv /root/.sdkman /opt/sdkman \
     && chmod -R a+rx /opt/sdkman
 
 ENV SDKMAN_DIR=/opt/sdkman
 
-# Install Spring Boot CLI via SDKMAN
-RUN bash -c "source /opt/sdkman/bin/sdkman-init.sh && sdk install springboot" || true
+# Install SDKMAN-hosted JVM CLIs with resumable downloads. Calling `sdk install`
+# directly can fall back to a slow single-stream downloader inside Docker.
+RUN --mount=type=cache,target=/var/cache/sdkman-downloads,sharing=locked set -eux; \
+    install_sdkman_archive() { \
+        candidate="$1"; \
+        version="$2"; \
+        install_dir="/opt/${candidate}-${version}"; \
+        download_dir="/var/cache/sdkman-downloads"; \
+        archive="${download_dir}/${candidate}-${version}.zip"; \
+        extract_dir="/tmp/${candidate}-${version}-extract"; \
+        rm -rf "$install_dir" "$extract_dir"; \
+        mkdir -p "$download_dir" "$extract_dir"; \
+        aria2c $ARIA2_RETRY_OPTS -d "$download_dir" -o "$(basename "$archive")" \
+            "https://api.sdkman.io/2/broker/download/${candidate}/${version}/linuxx64"; \
+        unzip -q "$archive" -d "$extract_dir"; \
+        first_entry="$(find "$extract_dir" -mindepth 1 -maxdepth 1 | head -n1)"; \
+        entry_count="$(find "$extract_dir" -mindepth 1 -maxdepth 1 | wc -l)"; \
+        mkdir -p "$install_dir"; \
+        if [ "$entry_count" = "1" ] && [ -d "$first_entry" ]; then \
+            cp -a "$first_entry"/. "$install_dir"/; \
+        else \
+            cp -a "$extract_dir"/. "$install_dir"/; \
+        fi; \
+        chmod -R a+rX "$install_dir"; \
+        if [ -d "$install_dir/bin" ]; then \
+            find "$install_dir/bin" -maxdepth 1 -type f -perm /111 -printf '%f\n' | \
+                while read -r tool; do \
+                    ln -sf "$install_dir/bin/$tool" "/usr/local/bin/$tool"; \
+                done; \
+        fi; \
+        rm -rf "$extract_dir"; \
+    }; \
+    install_sdkman_archive springboot "$SPRINGBOOT_VERSION"; \
+    install_sdkman_archive kotlin "$KOTLIN_VERSION"; \
+    install_sdkman_archive groovy "$GROOVY_VERSION"; \
+    install_sdkman_archive scala "$SCALA_VERSION"; \
+    install_sdkman_archive quarkus "$QUARKUS_VERSION"; \
+    install_sdkman_archive micronaut "$MICRONAUT_VERSION"; \
+    spring --version; \
+    kotlin -version; \
+    groovy --version; \
+    scala -version; \
+    quarkus --version; \
+    mn --version
 
 # ========================================
 # CONTAINER TOOLING
@@ -80,7 +147,7 @@ RUN bash -c "source /opt/sdkman/bin/sdkman-init.sh && sdk install springboot" ||
 RUN apt-get update && apt-get install -y \
     ca-certificates gnupg lsb-release \
     && install -m 0755 -d /etc/apt/keyrings \
-    && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --batch --yes --dearmor -o /etc/apt/keyrings/docker.gpg \
+    && curl -fsSL $CURL_RETRY_OPTS https://download.docker.com/linux/ubuntu/gpg | gpg --batch --yes --dearmor -o /etc/apt/keyrings/docker.gpg \
     && chmod a+r /etc/apt/keyrings/docker.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list \
     && apt-get update && apt-get install -y docker-ce-cli docker-compose-plugin \
@@ -103,22 +170,26 @@ RUN apt-get update && apt-get install -y \
 
 # Checkstyle
 RUN mkdir -p /opt/checkstyle \
-    && curl -fsSL https://github.com/checkstyle/checkstyle/releases/download/checkstyle-10.21.4/checkstyle-10.21.4-all.jar \
-       -o /opt/checkstyle/checkstyle.jar
+    && aria2c $ARIA2_RETRY_OPTS -d /opt/checkstyle -o checkstyle.jar \
+       https://github.com/checkstyle/checkstyle/releases/download/checkstyle-13.7.0/checkstyle-13.7.0-all.jar \
+    && printf '%s\n' '#!/usr/bin/env sh' \
+        'exec java -jar /opt/checkstyle/checkstyle.jar "$@"' \
+        > /usr/local/bin/checkstyle \
+    && chmod +x /usr/local/bin/checkstyle
 
 # SpotBugs
-RUN curl -fsSL https://github.com/spotbugs/spotbugs/releases/download/4.8.6/spotbugs-4.8.6.tgz \
-       -o /tmp/spotbugs.tgz \
+RUN aria2c $ARIA2_RETRY_OPTS -d /tmp -o spotbugs.tgz \
+       https://github.com/spotbugs/spotbugs/releases/download/4.10.2/spotbugs-4.10.2.tgz \
     && tar -xzf /tmp/spotbugs.tgz -C /opt \
-    && chmod +x /opt/spotbugs-4.8.6/bin/spotbugs \
-    && ln -s /opt/spotbugs-4.8.6/bin/spotbugs /usr/local/bin/spotbugs \
+    && chmod +x /opt/spotbugs-4.10.2/bin/spotbugs \
+    && ln -s /opt/spotbugs-4.10.2/bin/spotbugs /usr/local/bin/spotbugs \
     && rm /tmp/spotbugs.tgz
 
 # PMD
-RUN curl -fsSL https://github.com/pmd/pmd/releases/download/pmd_releases%2F7.9.0/pmd-dist-7.9.0-bin.zip \
-       -o /tmp/pmd.zip \
+RUN aria2c $ARIA2_RETRY_OPTS -d /tmp -o pmd.zip \
+       https://github.com/pmd/pmd/releases/download/pmd_releases%2F7.26.0/pmd-dist-7.26.0-bin.zip \
     && unzip -q /tmp/pmd.zip -d /opt \
-    && ln -s /opt/pmd-bin-7.9.0/bin/pmd /usr/local/bin/pmd \
+    && ln -s /opt/pmd-bin-7.26.0/bin/pmd /usr/local/bin/pmd \
     && rm /tmp/pmd.zip
 
 # JaCoCo coverage tools for manual Java coverage workflows.
@@ -126,10 +197,10 @@ COPY files/jacoco-cli /usr/local/bin/jacoco-cli
 COPY files/sonarcloud-java-maven /usr/local/bin/sonarcloud-java-maven
 COPY files/sonarcloud-java-gradle /usr/local/bin/sonarcloud-java-gradle
 RUN mkdir -p /opt/jacoco \
-    && curl -fsSL "https://repo1.maven.org/maven2/org/jacoco/org.jacoco.cli/${JACOCO_VERSION}/org.jacoco.cli-${JACOCO_VERSION}-nodeps.jar" \
-       -o /opt/jacoco/jacococli.jar \
-    && curl -fsSL "https://repo1.maven.org/maven2/org/jacoco/org.jacoco.agent/${JACOCO_VERSION}/org.jacoco.agent-${JACOCO_VERSION}-runtime.jar" \
-       -o /opt/jacoco/jacocoagent.jar \
+    && aria2c $ARIA2_RETRY_OPTS -d /opt/jacoco -o jacococli.jar \
+       "https://repo1.maven.org/maven2/org/jacoco/org.jacoco.cli/${JACOCO_VERSION}/org.jacoco.cli-${JACOCO_VERSION}-nodeps.jar" \
+    && aria2c $ARIA2_RETRY_OPTS -d /opt/jacoco -o jacocoagent.jar \
+       "https://repo1.maven.org/maven2/org/jacoco/org.jacoco.agent/${JACOCO_VERSION}/org.jacoco.agent-${JACOCO_VERSION}-runtime.jar" \
     && chmod +x /usr/local/bin/jacoco-cli /usr/local/bin/sonarcloud-java-maven /usr/local/bin/sonarcloud-java-gradle
 
 # SonarScanner CLI is inherited from dev-bench-base.
@@ -138,12 +209,6 @@ RUN sonar-scanner --version
 # ========================================
 # JVM COMPANION LANGUAGES
 # ========================================
-
-# Install Kotlin, Groovy, Scala via SDKMAN
-RUN bash -c "source /opt/sdkman/bin/sdkman-init.sh \
-    && sdk install kotlin \
-    && sdk install groovy \
-    && sdk install scala" || true
 
 # ========================================
 # SYSTEM UTILITIES
@@ -160,35 +225,36 @@ RUN apt-get update && apt-get install -y \
 # FRAMEWORK CLIs
 # ========================================
 
-# Install Quarkus and Micronaut CLIs via SDKMAN
-# (Spring Boot CLI already installed above)
-RUN bash -c "source /opt/sdkman/bin/sdkman-init.sh \
-    && sdk install quarkus \
-    && sdk install micronaut" || true
-
 # ========================================
 # PERFORMANCE TESTING
 # ========================================
 
 # Apache JMeter 5.6.3
-RUN curl -fsSL https://dlcdn.apache.org/jmeter/binaries/apache-jmeter-5.6.3.tgz \
-       -o /tmp/jmeter.tgz \
+RUN aria2c $ARIA2_RETRY_OPTS -d /tmp -o jmeter.tgz \
+       https://dlcdn.apache.org/jmeter/binaries/apache-jmeter-5.6.3.tgz \
     && tar -xzf /tmp/jmeter.tgz -C /opt \
     && ln -s /opt/apache-jmeter-5.6.3/bin/jmeter /usr/local/bin/jmeter \
     && rm /tmp/jmeter.tgz
 
 ENV JMETER_HOME=/opt/apache-jmeter-5.6.3
 
-# Gatling 3.10.5 (last traditional standalone bundle)
-RUN curl -fsSL https://repo1.maven.org/maven2/io/gatling/highcharts/gatling-charts-highcharts-bundle/3.10.5/gatling-charts-highcharts-bundle-3.10.5-bundle.zip \
-       -o /tmp/gatling.zip \
+# Gatling standalone bundle
+RUN aria2c $ARIA2_RETRY_OPTS -d /tmp -o gatling.zip \
+       https://repo1.maven.org/maven2/io/gatling/highcharts/gatling-charts-highcharts-bundle/3.15.1/gatling-charts-highcharts-bundle-3.15.1-bundle.zip \
     && unzip -q /tmp/gatling.zip -d /opt \
-    && chmod +x /opt/gatling-charts-highcharts-bundle-3.10.5/bin/*.sh \
-    && ln -s /opt/gatling-charts-highcharts-bundle-3.10.5/bin/gatling.sh /usr/local/bin/gatling \
-    && ln -s /opt/gatling-charts-highcharts-bundle-3.10.5/bin/recorder.sh /usr/local/bin/gatling-recorder \
+    && chmod +x /opt/gatling-charts-highcharts-bundle-3.15.1/mvnw \
+    && printf '%s\n' '#!/usr/bin/env bash' \
+        'set -euo pipefail' \
+        'cd "${GATLING_HOME:-/opt/gatling-charts-highcharts-bundle-3.15.1}"' \
+        'exec ./mvnw gatling:test "$@"' > /usr/local/bin/gatling \
+    && printf '%s\n' '#!/usr/bin/env bash' \
+        'set -euo pipefail' \
+        'cd "${GATLING_HOME:-/opt/gatling-charts-highcharts-bundle-3.15.1}"' \
+        'exec ./mvnw gatling:recorder "$@"' > /usr/local/bin/gatling-recorder \
+    && chmod +x /usr/local/bin/gatling /usr/local/bin/gatling-recorder \
     && rm /tmp/gatling.zip
 
-ENV GATLING_HOME=/opt/gatling-charts-highcharts-bundle-3.10.5
+ENV GATLING_HOME=/opt/gatling-charts-highcharts-bundle-3.15.1
 
 # ========================================
 # WORKSPACE SETUP
@@ -213,8 +279,8 @@ RUN mkdir -p /etc/skel/.m2 \
 # Add Java development aliases and environment to /etc/skel/.zshrc
 RUN echo '' >> /etc/skel/.zshrc && \
     echo '# Java Development Environment' >> /etc/skel/.zshrc && \
-    echo 'export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64' >> /etc/skel/.zshrc && \
-    echo 'export GRADLE_HOME=/opt/gradle/gradle-8.5' >> /etc/skel/.zshrc && \
+    echo 'export JAVA_HOME=/usr/lib/jvm/java-25-openjdk-amd64' >> /etc/skel/.zshrc && \
+    echo 'export GRADLE_HOME=/opt/gradle/gradle-9.6.1' >> /etc/skel/.zshrc && \
     echo 'export PATH="$JAVA_HOME/bin:$GRADLE_HOME/bin:$PATH"' >> /etc/skel/.zshrc && \
     echo '' >> /etc/skel/.zshrc && \
     echo '# Java Build aliases' >> /etc/skel/.zshrc && \

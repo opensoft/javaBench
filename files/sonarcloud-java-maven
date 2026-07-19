@@ -22,8 +22,8 @@ if [[ -z "${SONAR_HOST_URL:-}" && -n "${SONARQUBE_URL:-}" ]]; then
 fi
 
 export SONAR_HOST_URL="${SONAR_HOST_URL:-https://sonarcloud.io}"
-export JACOCO_VERSION="${JACOCO_VERSION:-0.8.14}"
-export SONAR_MAVEN_PLUGIN_VERSION="${SONAR_MAVEN_PLUGIN_VERSION:-5.6.0.6792}"
+export JACOCO_VERSION="${JACOCO_VERSION:-0.8.15}"
+export SONAR_MAVEN_PLUGIN_VERSION="${SONAR_MAVEN_PLUGIN_VERSION:-5.7.0.6970}"
 
 if [[ -z "${SONAR_TOKEN:-}" ]]; then
     echo "Missing SONAR_TOKEN or SONARQUBE_TOKEN." >&2

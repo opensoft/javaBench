@@ -23,7 +23,7 @@ if [[ -z "${SONAR_HOST_URL:-}" && -n "${SONARQUBE_URL:-}" ]]; then
 fi
 
 export SONAR_HOST_URL="${SONAR_HOST_URL:-https://sonarcloud.io}"
-export SONAR_GRADLE_PLUGIN_VERSION="${SONAR_GRADLE_PLUGIN_VERSION:-7.3.0.8198}"
+export SONAR_GRADLE_PLUGIN_VERSION="${SONAR_GRADLE_PLUGIN_VERSION:-7.3.1.8318}"
 
 if [[ -z "${SONAR_TOKEN:-}" ]]; then
     echo "Missing SONAR_TOKEN or SONARQUBE_TOKEN." >&2

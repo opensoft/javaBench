@@ -12,8 +12,11 @@ services:
       - GRADLE_HOME=/opt/gradle/gradle-8.5
       - MAVEN_OPTS=-Dmaven.repo.local=/workspace/m2repo
     tty: true
+    networks:
+      - java-bench-net
 
 networks:
-  default:
+  java-bench-net:
+    name: java-bench_default
     driver_opts:
       com.docker.network.driver.mtu: "1400"

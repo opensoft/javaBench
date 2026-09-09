@@ -2,7 +2,6 @@ name: dev-benches
 
 services:
   java-bench:
-    env_file: .env
     image: java-bench:${USER:-brett}
     container_name: java-bench
     command: sleep infinity
@@ -12,8 +11,10 @@ services:
       - GRADLE_HOME=/opt/gradle/gradle-8.5
       - MAVEN_OPTS=-Dmaven.repo.local=/workspace/m2repo
     tty: true
+    networks:
+      - java-bench-net
 
 networks:
-  default:
+  java-bench-net:
     driver_opts:
       com.docker.network.driver.mtu: "1400"

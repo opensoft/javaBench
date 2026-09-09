@@ -2,7 +2,6 @@ name: dev-benches
 
 services:
   java-bench:
-    env_file: .env
     image: java-bench:${USER:-brett}
     container_name: java-bench
     command: sleep infinity
@@ -17,6 +16,5 @@ services:
 
 networks:
   java-bench-net:
-    name: java-bench_default
     driver_opts:
       com.docker.network.driver.mtu: "1400"

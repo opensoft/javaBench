@@ -4,15 +4,23 @@ services:
   java-bench:
     image: java-bench:${USER:-brett}
     container_name: java-bench
-    command: sleep infinity
+    command: ["/bin/bash", "-c", 'sudo install -d -m 0700 -o "$$(id -u)" -g "$$(id -g)" "$$HOME/.workbenches-history" && if [ -f "$$HOME/.workbenches-history/.zsh_history" ]; then sudo chown "$$(id -u):$$(id -g)" "$$HOME/.workbenches-history/.zsh_history"; fi && exec sleep infinity']
+    volumes:
+      - javabench-zshhistory:/home/${USER:-brett}/.workbenches-history
     working_dir: ${WORKING_DIR:-/workspace}
     environment:
+      - HISTFILE=/home/${USER:-brett}/.workbenches-history/.zsh_history
       - JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
       - GRADLE_HOME=/opt/gradle/gradle-8.5
       - MAVEN_OPTS=-Dmaven.repo.local=/workspace/m2repo
     tty: true
     networks:
       - java-bench-net
+
+volumes:
+  javabench-zshhistory:
+    # Retain the existing Compose volume; override for a legacy engine name.
+    name: ${WORKBENCH_HISTORY_VOLUME:-dev-benches_javabench-zshhistory}
 
 networks:
   java-bench-net:

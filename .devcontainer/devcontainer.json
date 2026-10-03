@@ -43,7 +43,6 @@
     "updateRemoteUserUID": false,
     "workspaceFolder": "/workspace",
     "mounts": [
-        "source=javabench-zshhistory,target=/home/${localEnv:USER}/.zsh_history,type=volume",
         "source=javabench-m2cache,target=/workspace/m2repo,type=volume",
         "source=javabench-gradlecache,target=/workspace/.gradle,type=volume",
         "source=${localEnv:HOME}/projects,target=/workspace/projects,type=bind",

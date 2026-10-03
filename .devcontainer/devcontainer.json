@@ -33,10 +33,8 @@
             ]
         }
     },
-    "postStartCommand": "sudo install -d -m 0700 -o \"$(id -u)\" -g \"$(id -g)\" \"$HOME/.workbenches-history\" && if [ -f \"$HOME/.workbenches-history/.zsh_history\" ]; then sudo chown \"$(id -u):$(id -g)\" \"$HOME/.workbenches-history/.zsh_history\"; fi",
     "containerEnv": {
         "SHELL": "/bin/zsh",
-        "HISTFILE": "/home/${localEnv:USER}/.workbenches-history/.zsh_history",
         "JAVA_HOME": "/usr/lib/jvm/java-21-openjdk-amd64",
         "GRADLE_HOME": "/opt/gradle/gradle-8.5",
         "MAVEN_OPTS": "-Dmaven.repo.local=/workspace/m2repo"
@@ -45,7 +43,6 @@
     "updateRemoteUserUID": false,
     "workspaceFolder": "/workspace",
     "mounts": [
-        "source=javabench-zshhistory,target=/home/${localEnv:USER}/.workbenches-history,type=volume",
         "source=javabench-m2cache,target=/workspace/m2repo,type=volume",
         "source=javabench-gradlecache,target=/workspace/.gradle,type=volume",
         "source=${localEnv:HOME}/projects,target=/workspace/projects,type=bind",

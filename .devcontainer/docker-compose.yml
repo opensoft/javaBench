@@ -7,6 +7,7 @@ services:
     command: sleep infinity
     working_dir: ${WORKING_DIR:-/workspace}
     environment:
+      - HISTFILE=/home/${USER:-brett}/.workbenches-history/.zsh_history
       - JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
       - GRADLE_HOME=/opt/gradle/gradle-8.5
       - MAVEN_OPTS=-Dmaven.repo.local=/workspace/m2repo

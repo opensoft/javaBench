@@ -4,8 +4,8 @@
 
 Use the supported Docker Compose plugin (`docker compose`, version 2 or newer).
 Bench services enable `init: true` to reap orphaned helpers. Legacy Compose v1
-installations are not supported; a compatibility `docker-compose` command must
-invoke the current plugin. This is a container-creation setting: image rebuilds
+installations are not supported; the startup scripts invoke `docker compose`
+directly. This is a container-creation setting: image rebuilds
 and container restarts do not retrofit it into an existing container.
 
 A comprehensive Java development environment using layered Docker containers.

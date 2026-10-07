@@ -49,10 +49,10 @@ try {
     # Start the container with proper user mapping
     if ($env:WSL_DISTRO_NAME) {
         # Already in WSL
-        & docker-compose up -d --build
+        & docker compose up -d --build
     } else {
         # Use WSL to run docker-compose
-        & wsl docker-compose up -d --build
+        & wsl docker compose up -d --build
     }
     
     if ($LASTEXITCODE -eq 0) {
@@ -66,10 +66,10 @@ try {
         Write-Host "   docker ps | grep dot_net_bench" -ForegroundColor White
     } else {
         Write-Host "❌ Container failed to start. Check Docker logs:" -ForegroundColor Red
-        Write-Host "   docker-compose logs" -ForegroundColor Yellow
+        Write-Host "   docker compose logs" -ForegroundColor Yellow
     }
 } catch {
-    Write-Host "❌ Error running docker-compose: $_" -ForegroundColor Red
+    Write-Host "❌ Error running docker compose: $_" -ForegroundColor Red
 } finally {
     Pop-Location
 }

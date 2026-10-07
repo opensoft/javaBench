@@ -2,6 +2,7 @@ name: dev-benches
 
 services:
   java-bench:
+    init: true
     image: java-bench:${USER:-brett}
     container_name: java-bench
     command: ["/bin/bash", "-c", 'sudo install -d -m 0700 -o "$$(id -u)" -g "$$(id -g)" "$$HOME/.workbenches-history" && if [ -f "$$HOME/.workbenches-history/.zsh_history" ]; then sudo chown "$$(id -u):$$(id -g)" "$$HOME/.workbenches-history/.zsh_history"; fi && exec sleep infinity']

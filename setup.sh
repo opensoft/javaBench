@@ -34,7 +34,7 @@ fi
 echo "🔧 Starting container with user mapping..."
 
 # Start the container with proper user mapping (no --build since using pre-built image)
-if docker-compose -f "$SCRIPT_DIR/.devcontainer/docker-compose.yml" up -d; then
+if docker compose -f "$SCRIPT_DIR/.devcontainer/docker-compose.yml" up -d; then
     echo "✅ Container started successfully!"
     echo ""
     echo "🎯 Next steps:"
@@ -52,5 +52,5 @@ if docker-compose -f "$SCRIPT_DIR/.devcontainer/docker-compose.yml" up -d; then
     echo "   - M2 repository at /workspace/m2repo"
 else
     echo "❌ Container failed to start. Check Docker logs:"
-    echo "   docker-compose -f .devcontainer/docker-compose.yml logs"
+    echo "   docker compose -f .devcontainer/docker-compose.yml logs"
 fi

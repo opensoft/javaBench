@@ -18,7 +18,7 @@ fi
 echo "🔧 Building container with user mapping..."
 
 # Start the container with proper user mapping
-docker-compose -f .devcontainer/docker-compose.yml up -d --build
+docker compose -f .devcontainer/docker-compose.yml up -d --build
 
 if [ $? -eq 0 ]; then
     echo "✅ Container started successfully!"
@@ -31,5 +31,5 @@ if [ $? -eq 0 ]; then
     echo "   docker ps | grep dot_net_bench"
 else
     echo "❌ Container failed to start. Check Docker logs:"
-    echo "   docker-compose -f .devcontainer/docker-compose.yml logs"
+    echo "   docker compose -f .devcontainer/docker-compose.yml logs"
 fi
